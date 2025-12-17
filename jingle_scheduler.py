@@ -1,9 +1,4 @@
 """
-Simple Jingle Scheduling Application (single-file)
-Requirements:
- - Python 3.8+
- - PyQt5 (pip install PyQt5)
- - python-vlc (pip install python-vlc)
 
 Features:
  - Use local audio files (add songs and jingles)
@@ -20,10 +15,6 @@ How scheduling works (simple, robust approach):
  - After a song finishes, the player checks whether a jingle should be played now (current time >= next_jingle_time or passed a scheduled clock-time that hasn't been fired yet).
  - If yes, it plays a randomly-chosen jingle (or the selected jingle) before continuing the main playlist.
 
-Notes:
- - This is a single-file, small demo app — not a production broadcast playout system.
- - If you want cloud integration (stream URLs or cloud storage), you can add URLs to the playlist in the same way as file paths. VLC will try to play them.
-
 """
 
 import sys
@@ -37,7 +28,7 @@ import json
 from pathlib import Path
 from PyQt5.QtWidgets import QShortcut
 from PyQt5.QtGui import QKeySequence
-from PyQt5.QtGui import QPalette, QColor
+# from PyQt5.QtGui import QPalette, QColor
 
 
 CACHE_FILE = str(Path.home() / '.jingle_scheduler_cache.json')
@@ -62,10 +53,9 @@ class SchedulerState:
             self.next_jingle_time = None
 
     def add_time(self, timestr):
-        # accept HH:MM
         try:
             t = datetime.strptime(timestr, '%H:%M').time()
-        except Exception:
+        except ValueError:
             return False
         self.times.append(timestr)
         self.mode = 'times'
@@ -127,10 +117,13 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
         # UI
         self.playlistView = QtWidgets.QListWidget()
         self.jingleView = QtWidgets.QListWidget()
+        self.playlistView.installEventFilter(self)
+        self.jingleView.installEventFilter(self)
         self.timeList = QtWidgets.QListWidget()
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         layout = QtWidgets.QHBoxLayout(central)
+        self.playlistView.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 
         left = QtWidgets.QVBoxLayout()
         right = QtWidgets.QVBoxLayout()
@@ -261,10 +254,21 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
             self.playlistView.addItem(f)
 
     def remove_selected_songs(self):
-        for item in self.playlistView.selectedItems():
-            row = self.playlistView.row(item)
+        items = self.playlistView.selectedIndexes()
+        if not items:
+            return
+
+        rows = sorted([i.row() for i in items], reverse=True)
+
+        for row in rows:
             self.playlistView.takeItem(row)
             del self.playlist[row]
+
+    # def remove_selected_songs(self):
+    #     for item in self.playlistView.selectedItems():
+    #         row = self.playlistView.row(item)
+    #         self.playlistView.takeItem(row)
+    #         del self.playlist[row]
 
     def remove_selected_jingles(self):
         for item in self.jingleView.selectedItems():
@@ -273,20 +277,70 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
             del self.jingles[row]
 
     def move_up(self):
-        sel = self.playlistView.currentRow()
-        if sel > 0:
-            self.playlist[sel-1], self.playlist[sel] = self.playlist[sel], self.playlist[sel-1]
-            item = self.playlistView.takeItem(sel)
-            self.playlistView.insertItem(sel-1, item)
-            self.playlistView.setCurrentRow(sel-1)
+        items = self.playlistView.selectedIndexes()
+        if not items:
+            return
+
+        rows = sorted([i.row() for i in items])
+
+        if rows[0] == 0:
+            return  # already at top
+
+        # Move all up
+        for row in rows:
+            item = self.playlistView.takeItem(row)
+            self.playlistView.insertItem(row - 1, item)
+
+            self.playlist[row], self.playlist[row - 1] = (
+                self.playlist[row - 1],
+                self.playlist[row],
+            )
+
+        # Reselect items at new positions
+        self.playlistView.clearSelection()
+        for row in [r - 1 for r in rows]:
+            self.playlistView.item(row).setSelected(True)
 
     def move_down(self):
-        sel = self.playlistView.currentRow()
-        if self.playlistView.count()-1 > sel >= 0:
-            self.playlist[sel+1], self.playlist[sel] = self.playlist[sel], self.playlist[sel+1]
-            item = self.playlistView.takeItem(sel)
-            self.playlistView.insertItem(sel+1, item)
-            self.playlistView.setCurrentRow(sel+1)
+        items = self.playlistView.selectedIndexes()
+        if not items:
+            return
+
+        rows = sorted([i.row() for i in items], reverse=True)
+
+        if rows[0] == self.playlistView.count() - 1:
+            return  # already at bottom
+
+        # Move all down
+        for row in rows:
+            item = self.playlistView.takeItem(row)
+            self.playlistView.insertItem(row + 1, item)
+
+            self.playlist[row], self.playlist[row + 1] = (
+                self.playlist[row + 1],
+                self.playlist[row],
+            )
+
+        # Reselect items at new positions
+        self.playlistView.clearSelection()
+        for row in [r + 1 for r in rows]:
+            self.playlistView.item(row).setSelected(True)
+
+    # def move_up(self):
+    #     sel = self.playlistView.currentRow()
+    #     if sel > 0:
+    #         self.playlist[sel-1], self.playlist[sel] = self.playlist[sel], self.playlist[sel-1]
+    #         item = self.playlistView.takeItem(sel)
+    #         self.playlistView.insertItem(sel-1, item)
+    #         self.playlistView.setCurrentRow(sel-1)
+    #
+    # def move_down(self):
+    #     sel = self.playlistView.currentRow()
+    #     if self.playlistView.count()-1 > sel >= 0:
+    #         self.playlist[sel+1], self.playlist[sel] = self.playlist[sel], self.playlist[sel+1]
+    #         item = self.playlistView.takeItem(sel)
+    #         self.playlistView.insertItem(sel+1, item)
+    #         self.playlistView.setCurrentRow(sel+1)
 
     def add_jingles(self):
         files, _ = QtWidgets.QFileDialog.getOpenFileNames(self, 'Select jingles', '', 'Audio Files (*.mp3 *.wav *.ogg *.flac);;All Files (*)')
@@ -308,6 +362,19 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
         self.timeList.addItem(t)
         self.timeEdit.clear()
         self.update_status()
+
+
+    # Listeners
+    def eventFilter(self, source, event):
+        if event.type() == QtCore.QEvent.KeyPress:
+            if event.key() in (QtCore.Qt.Key_Delete, QtCore.Qt.Key_Backspace):
+                if source is self.playlistView:
+                    self.remove_selected_songs()
+                    return True
+                elif source is self.jingleView:
+                    self.remove_selected_jingles()
+                    return True
+        return super().eventFilter(source, event)
 
     # Playback control
     def play_pause(self):
@@ -400,7 +467,7 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
                     self._play_current_song()
                 # update status occasionally
                 time.sleep(0.5)
-            except Exception:
+            except vlc.VLCException:
                 time.sleep(0.5)
 
     def closeEvent(self, event):
@@ -410,7 +477,7 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
             self.player.stop()
             if self.jplayer and self.playing_jingle:
                 self.jplayer.stop()
-        except Exception:
+        except vlc.VLCException:
             pass
 
         # Save playlist and jingles to cache
@@ -451,130 +518,122 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     app.setStyle("Fusion")
 
-    palette = QPalette()
-    palette.setColor(QPalette.Window, QColor(40, 40, 40))
-    palette.setColor(QPalette.WindowText, QtCore.Qt.white)
-    palette.setColor(QPalette.Base, QColor(30, 30, 30))
-    palette.setColor(QPalette.AlternateBase, QColor(45, 45, 45))
-    palette.setColor(QPalette.ToolTipBase, QtCore.Qt.white)
-    palette.setColor(QPalette.ToolTipText, QtCore.Qt.white)
-    palette.setColor(QPalette.Text, QtCore.Qt.white)
-    palette.setColor(QPalette.Button, QColor(60, 60, 60))
-    palette.setColor(QPalette.ButtonText, QtCore.Qt.white)
-    palette.setColor(QPalette.BrightText, QtCore.Qt.red)
-    palette.setColor(QPalette.Highlight, QColor(255, 99, 71))  # tomato red
-    palette.setColor(QPalette.HighlightedText, QtCore.Qt.black)
-
-    app.setPalette(palette)
+    # palette = QPalette()
+    # palette.setColor(QPalette.Window, QColor(40, 40, 40))
+    # palette.setColor(QPalette.WindowText, QtCore.Qt.white)
+    # palette.setColor(QPalette.Base, QColor(30, 30, 30))
+    # palette.setColor(QPalette.AlternateBase, QColor(45, 45, 45))
+    # palette.setColor(QPalette.ToolTipBase, QtCore.Qt.white)
+    # palette.setColor(QPalette.ToolTipText, QtCore.Qt.white)
+    # palette.setColor(QPalette.Text, QtCore.Qt.white)
+    # palette.setColor(QPalette.Button, QColor(60, 60, 60))
+    # palette.setColor(QPalette.ButtonText, QtCore.Qt.white)
+    # palette.setColor(QPalette.BrightText, QtCore.Qt.red)
+    # palette.setColor(QPalette.Highlight, QColor(255, 99, 71))  # tomato red
+    # palette.setColor(QPalette.HighlightedText, QtCore.Qt.black)
+    #
+    # app.setPalette(palette)
 
     app.setStyleSheet("""
-        QWidget {
-            background-color: 444444;
-            color: white;
-            font-family: 'Segoe UI', sans-serif;
-            font-size: 11pt;
-        }
+           QWidget {
+               background-color: #2E2E2E;     /* warm dark gray */
+               color: #F2F2F2;
+               font-family: 'Segoe UI', sans-serif;
+               font-size: 11pt;
+           }
 
-        QPushButton {
-            background-color: #20B2AA;  /* light sea green */
-            border: none;
-            padding: 8px 14px;
-            border-radius: 8px;
-            color: white;
-            font-weight: bold;
-        }
-        QPushButton:hover {
-            background-color: #2EC4B6;  /* brighter teal */
-        }
-        QPushButton:pressed {
-            background-color: #1E7A74;  /* darker pressed shade */
-        }
+           QPushButton {
+               background-color: #D4A056;     /* soft amber / gold */
+               border: none;
+               padding: 8px 14px;
+               border-radius: 8px;
+               color: #2E2E2E;
+               font-weight: bold;
+           }
+           QPushButton:hover {
+               background-color: #E0B46C;     /* lighter amber */
+           }
+           QPushButton:pressed {
+               background-color: #B88743;     /* deeper amber */
+           }
 
-        QListWidget {
-            background-color: #184C4F;  /* mid-tone teal */
-            border: 1px solid #308E91;
-            border-radius: 8px;
-            padding: 6px;
-            color: #E0FFFF;
-            selection-background-color: #2EC4B6;
-            selection-color: #102A2E;
-        }
+           QListWidget {
+               background-color: #1F1F1F;     /* near-black warm gray */
+               border: 1px solid #555;
+               border-radius: 8px;
+               padding: 6px;
+               color: #F2F2F2;
+               selection-background-color: #E0B46C;
+               selection-color: #2E2E2E;
+           }
 
-        QLabel {
-            font-weight: bold;
-            color: #40E0D0;  /* turquoise accent */
-        }
+           QLabel {
+               font-weight: bold;
+               color: #FFD37A;                /* light amber highlight */
+           }
 
-        QMenuBar, QMenu {
-            background-color: #184C4F;
-            color: #E0FFFF;
-            border: none;
-        }
-        QMenu::item:selected {
-            background-color: #2EC4B6;
-            color: #102A2E;
-        }
+           QMenuBar, QMenu {
+               background-color: #1F1F1F;
+               color: #F2F2F2;
+               border: none;
+           }
+           QMenu::item:selected {
+               background-color: #D4A056;
+               color: #2E2E2E;
+           }
 
-        QScrollBar:vertical {
-            background-color: #102A2E;
-            width: 10px;
-            margin: 0px;
-            border-radius: 4px;
-        }
-        QScrollBar::handle:vertical {
-            background-color: #2EC4B6;
-            border-radius: 4px;
-            min-height: 20px;
-        }
-        QScrollBar::handle:vertical:hover {
-            background-color: #40E0D0;
-        }
-        
-        QSpinBox {
-            background-color: #184C4F;
-            color: #E0FFFF;
-            border: 1px solid #308E91;
-            border-radius: 6px;
-            padding-right: 24px;  /* leave room for arrows */
-            padding-left: 6px;
-            selection-background-color: #2EC4B6;
-            selection-color: #102A2E;
-        }
-        
-        QSpinBox:hover {
-            background-color: #1E5E61;
-        }
-        
-        QSpinBox::up-button, QSpinBox::down-button {
-            background-color: #20B2AA;
-            border: none;
-            subcontrol-origin: border;
-            width: 16px;
-            border-radius: 3px;
-        }
-        
-        QSpinBox::up-button:hover, QSpinBox::down-button:hover {
-            background-color: #2EC4B6;
-        }
-        
-        QSpinBox::up-arrow {
-            image: none;
-            color: white;
-            content: "▲"; /* simple Unicode arrow */
-            font-size: 8pt;
-            width: 10px;
-            height: 10px;
-        }
-        
-        QSpinBox::down-arrow {
-            image: none;
-            color: white;
-            content: "▼";
-            font-size: 8pt;
-            width: 10px;
-            height: 10px;
-        }
+           QScrollBar:vertical {
+               background-color: #121212;
+               width: 10px;
+               border-radius: 4px;
+           }
+           QScrollBar::handle:vertical {
+               background-color: #D4A056;     /* amber */
+               border-radius: 4px;
+               min-height: 20px;
+           }
+           QScrollBar::handle:vertical:hover {
+               background-color: #E0B46C;
+           }
 
+           QSpinBox {
+               background-color: #1F1F1F;
+               color: #F2F2F2;
+               border: 1px solid #555;
+               border-radius: 6px;
+               padding-right: 24px;
+               padding-left: 6px;
+               selection-background-color: #E0B46C;
+               selection-color: #2E2E2E;
+           }
+
+           QSpinBox:hover {
+               background-color: #262626;
+           }
+
+           QSpinBox::up-button, QSpinBox::down-button {
+               background-color: #D4A056;
+               border: none;
+               subcontrol-origin: border;
+               width: 18px;
+               border-radius: 3px;
+           }
+
+           QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+               background-color: #E0B46C;
+           }
+
+           QSpinBox::up-arrow {
+               image: none;
+               color: #2E2E2E;
+               font-size: 9pt;
+           }
+
+           QSpinBox::down-arrow {
+               image: none;
+               color: #2E2E2E;
+               font-size: 9pt;
+           }
     """)
 
     font = app.font()
