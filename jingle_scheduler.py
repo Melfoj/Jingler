@@ -605,7 +605,7 @@ if __name__ == '__main__':
                padding-left: 6px;
                selection-background-color: #E0B46C;
                selection-color: #2E2E2E;
-           }
+           }            
 
            QSpinBox:hover {
                background-color: #262626;
@@ -621,18 +621,6 @@ if __name__ == '__main__':
 
            QSpinBox::up-button:hover, QSpinBox::down-button:hover {
                background-color: #E0B46C;
-           }
-
-           QSpinBox::up-arrow {
-               image: none;
-               color: #2E2E2E;
-               font-size: 9pt;
-           }
-
-           QSpinBox::down-arrow {
-               image: none;
-               color: #2E2E2E;
-               font-size: 9pt;
            }
     """)
 
