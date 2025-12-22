@@ -27,7 +27,7 @@ import vlc
 import json
 from pathlib import Path
 from PyQt5.QtWidgets import QShortcut
-from PyQt5.QtGui import QKeySequence
+from PyQt5.QtGui import QKeySequence, QKeyEvent
 # from PyQt5.QtGui import QPalette, QColor
 
 
@@ -100,7 +100,8 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Jingle Scheduler')
-        self.setMinimumSize(1200, 600)
+        self.setMinimumSize(1000, 600)
+        self.resize(1000, 600)
 
         # VLC player
         self.instance = vlc.Instance()
@@ -117,13 +118,27 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
         # UI
         self.playlistView = QtWidgets.QListWidget()
         self.jingleView = QtWidgets.QListWidget()
-        self.playlistView.installEventFilter(self)
-        self.jingleView.installEventFilter(self)
+        # self.playlistView.installEventFilter(self)
+        # self.jingleView.installEventFilter(self)
         self.timeList = QtWidgets.QListWidget()
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         layout = QtWidgets.QHBoxLayout(central)
         self.playlistView.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+
+        # --- Playlist Delete Shortcuts ---
+        self.shortcut_delete_playlist = QShortcut(QKeySequence(QtCore.Qt.Key_Delete), self.playlistView)
+        self.shortcut_delete_playlist.activated.connect(self.remove_selected_songs)
+
+        self.shortcut_backspace_playlist = QShortcut(QKeySequence(QtCore.Qt.Key_Backspace), self.playlistView)
+        self.shortcut_backspace_playlist.activated.connect(self.remove_selected_songs)
+
+        # --- Jingle Delete Shortcuts ---
+        self.shortcut_delete_jingle = QShortcut(QKeySequence(QtCore.Qt.Key_Delete), self.jingleView)
+        self.shortcut_delete_jingle.activated.connect(self.remove_selected_jingles)
+
+        self.shortcut_backspace_jingle = QShortcut(QKeySequence(QtCore.Qt.Key_Backspace), self.jingleView)
+        self.shortcut_backspace_jingle.activated.connect(self.remove_selected_jingles)
 
         left = QtWidgets.QVBoxLayout()
         right = QtWidgets.QVBoxLayout()
@@ -179,7 +194,7 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
         addSongBtn = QtWidgets.QPushButton('Add Songs')
         addSongBtn.clicked.connect(self.add_songs)
         btnRow.addWidget(addSongBtn)
-        removeSongBtn = QtWidgets.QPushButton('Remove Selected')
+        removeSongBtn = QtWidgets.QPushButton('Remove')
         removeSongBtn.clicked.connect(self.remove_selected_songs)
         btnRow.addWidget(removeSongBtn)
         upBtn = QtWidgets.QPushButton('Move Up')
@@ -241,7 +256,9 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
         self.statusLabel = QtWidgets.QLabel('Stopped')
         right.addWidget(self.statusLabel)
 
-        # Start a monitor thread to watch media end
+        self.playlistView.setFocus()
+
+        # Start monitor thread
         self.monitor_thread = threading.Thread(target=self._monitor_playback, daemon=True)
         self._monitor_stop = False
         self.monitor_thread.start()
@@ -365,8 +382,20 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
 
 
     # Listeners
-    def eventFilter(self, source, event):
-        if event.type() == QtCore.QEvent.KeyPress:
+    # def eventFilter(self, source, event):
+    #     if event.type() == QtCore.QEvent.KeyPress:
+    #         if event.key() in (QtCore.Qt.Key_Delete, QtCore.Qt.Key_Backspace):
+    #             if source is self.playlistView:
+    #                 self.remove_selected_songs()
+    #                 return True
+    #             elif source is self.jingleView:
+    #                 self.remove_selected_jingles()
+    #                 return True
+    #     return super().eventFilter(source, event)
+
+    def eventFilter(self, source, event:QKeyEvent):
+        if isinstance(event, QKeyEvent) and event.type() == QtCore.QEvent.KeyPress:
+            print(f"key: {event.text()}")
             if event.key() in (QtCore.Qt.Key_Delete, QtCore.Qt.Key_Backspace):
                 if source is self.playlistView:
                     self.remove_selected_songs()
