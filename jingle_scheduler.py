@@ -28,7 +28,6 @@ import json
 from pathlib import Path
 from PyQt5.QtWidgets import QShortcut
 from PyQt5.QtGui import QKeySequence, QKeyEvent
-# from PyQt5.QtGui import QPalette, QColor
 
 
 CACHE_FILE = str(Path.home() / '.jingle_scheduler_cache.json')
@@ -118,8 +117,8 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
         # UI
         self.playlistView = QtWidgets.QListWidget()
         self.jingleView = QtWidgets.QListWidget()
-        # self.playlistView.installEventFilter(self)
-        # self.jingleView.installEventFilter(self)
+        self.playlistView.installEventFilter(self)
+        self.jingleView.installEventFilter(self)
         self.timeList = QtWidgets.QListWidget()
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -393,10 +392,10 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
     #                 return True
     #     return super().eventFilter(source, event)
 
-    def eventFilter(self, source, event:QKeyEvent):
+    def eventFilter(self, source, event):
         if isinstance(event, QKeyEvent) and event.type() == QtCore.QEvent.KeyPress:
             print(f"key: {event.text()}")
-            if event.key() in (QtCore.Qt.Key_Delete, QtCore.Qt.Key_Backspace):
+            if event.key() in (QtCore.Qt.Key_Delete, QtCore.Qt.Key_Backspace, 82):
                 if source is self.playlistView:
                     self.remove_selected_songs()
                     return True
