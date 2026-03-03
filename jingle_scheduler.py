@@ -1,18 +1,18 @@
 """
 
 Features:
- - Use local audio files (add songs and jingles)
- - Basic playlist management (add, remove, reorder)
+ - Use local audio files (songs and jingles)
+ - Playlist management (add, remove, reorder)
  - Play/pause/next
  - Two scheduling modes for jingles:
-    1) Specific clock times (add times like 14:30, will play the jingle at the next song break after that time)
+    1) Specific time (add times, the jingle will play at the next song break after that time)
     2) N times per hour (distributes jingles roughly evenly, played between songs)
  - Jingles are always played between songs (app will wait for current song to finish, then play jingle if schedule calls for it)
 
-How scheduling works (simple, robust approach):
+How scheduling works:
  - The app tracks "next_jingle_time" when using "per-hour" mode: next_jingle_time = last_jingle_time + 3600/N
  - It also stores a list of absolute times for time-based jingles.
- - After a song finishes, the player checks whether a jingle should be played now (current time >= next_jingle_time or passed a scheduled clock-time that hasn't been fired yet).
+ - After a song finishes, the player checks whether a jingle should be played now (current time >= next_jingle_time or passed a scheduled clock-time that hasn't been played yet).
  - If yes, it plays a randomly-chosen jingle (or the selected jingle) before continuing the main playlist.
 
 """
@@ -125,44 +125,16 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
         layout = QtWidgets.QHBoxLayout(central)
         self.playlistView.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 
-        # --- Playlist Delete Shortcuts ---
-        self.shortcut_delete_playlist = QShortcut(QKeySequence(QtCore.Qt.Key_Delete), self.playlistView)
-        self.shortcut_delete_playlist.activated.connect(self.remove_selected_songs)
-
-        self.shortcut_backspace_playlist = QShortcut(QKeySequence(QtCore.Qt.Key_Backspace), self.playlistView)
-        self.shortcut_backspace_playlist.activated.connect(self.remove_selected_songs)
-
-        # --- Jingle Delete Shortcuts ---
-        self.shortcut_delete_jingle = QShortcut(QKeySequence(QtCore.Qt.Key_Delete), self.jingleView)
-        self.shortcut_delete_jingle.activated.connect(self.remove_selected_jingles)
-
-        self.shortcut_backspace_jingle = QShortcut(QKeySequence(QtCore.Qt.Key_Backspace), self.jingleView)
-        self.shortcut_backspace_jingle.activated.connect(self.remove_selected_jingles)
-
         left = QtWidgets.QVBoxLayout()
         right = QtWidgets.QVBoxLayout()
         layout.addLayout(left, 3)
         layout.addLayout(right, 1)
 
-        self.playlistView.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        self.jingleView.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        # self.playlistView.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        # self.jingleView.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 
-        self.playlistView.setFocusPolicy(QtCore.Qt.StrongFocus)
-        self.jingleView.setFocusPolicy(QtCore.Qt.StrongFocus)
-
-        # --- Playlist Delete Shortcut ---
-        self.shortcut_playlist_delete = QShortcut(QKeySequence("Delete"), self.playlistView)
-        self.shortcut_playlist_delete.activated.connect(self.remove_selected_songs)
-
-        self.shortcut_playlist_backspace = QShortcut(QKeySequence("Backspace"), self.playlistView)
-        self.shortcut_playlist_backspace.activated.connect(self.remove_selected_songs)
-
-        # --- Jingle Delete Shortcut ---
-        self.shortcut_jingle_delete = QShortcut(QKeySequence("Delete"), self.jingleView)
-        self.shortcut_jingle_delete.activated.connect(self.remove_selected_jingles)
-
-        self.shortcut_jingle_backspace = QShortcut(QKeySequence("Backspace"), self.jingleView)
-        self.shortcut_jingle_backspace.activated.connect(self.remove_selected_jingles)
+        # self.playlistView.setFocusPolicy(QtCore.Qt.StrongFocus)
+        # self.jingleView.setFocusPolicy(QtCore.Qt.StrongFocus)
 
         # Load cached playlist and jingles
         try:
@@ -381,21 +353,10 @@ class JingleSchedulerApp(QtWidgets.QMainWindow):
 
 
     # Listeners
-    # def eventFilter(self, source, event):
-    #     if event.type() == QtCore.QEvent.KeyPress:
-    #         if event.key() in (QtCore.Qt.Key_Delete, QtCore.Qt.Key_Backspace):
-    #             if source is self.playlistView:
-    #                 self.remove_selected_songs()
-    #                 return True
-    #             elif source is self.jingleView:
-    #                 self.remove_selected_jingles()
-    #                 return True
-    #     return super().eventFilter(source, event)
-
     def eventFilter(self, source, event):
         if isinstance(event, QKeyEvent) and event.type() == QtCore.QEvent.KeyPress:
             print(f"key: {event.text()}")
-            if event.key() in (QtCore.Qt.Key_Delete, QtCore.Qt.Key_Backspace, 82):
+            if event.key() in (QtCore.Qt.Key_Delete, QtCore.Qt.Key_Backspace, QtCore.Qt.Key_X):
                 if source is self.playlistView:
                     self.remove_selected_songs()
                     return True
